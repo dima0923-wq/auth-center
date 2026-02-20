@@ -77,7 +77,7 @@ export function TelegramLoginButton() {
     widgetRef.current.appendChild(script);
 
     return () => {
-      delete (window as Record<string, unknown>).onTelegramAuth;
+      delete (window as unknown as Record<string, unknown>).onTelegramAuth;
     };
   }, [handleTelegramAuth]);
 
