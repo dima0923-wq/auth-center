@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";
 import { createSessionToken } from "@/lib/auth";
+import { issueProjectToken } from "@/lib/jwt";
 import { prisma } from "@/lib/db";
+import {
+  validateRedirectUrl,
+  projectFromRedirectUrl,
+  CROSS_DOMAIN_COOKIE,
+  COOKIE_DOMAIN,
+} from "@/lib/redirect";
 
 function hashCode(code: string): string {
   return createHash("sha256").update(code).digest("hex");
@@ -12,6 +19,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const username = body.username?.trim()?.replace("@", "")?.toLowerCase();
     const code = body.code?.trim();
+    const redirectUrl = body.redirect_url as string | undefined;
 
     if (!username || !code) {
       return NextResponse.json({ error: "Username and code are required" }, { status: 400 });
@@ -131,11 +139,92 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Issue session
-    const token = await createSessionToken(user.id);
+    // Issue session cookie (for Auth Center itself)
+    const sessionToken = await createSessionToken(user.id);
 
+    // Load user roles/permissions for project token
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        projectRoles: {
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Cross-project redirect flow
+    const validatedRedirect = redirectUrl
+      ? validateRedirectUrl(redirectUrl)
+      : null;
+
+    if (validatedRedirect) {
+      const project = projectFromRedirectUrl(validatedRedirect);
+
+      // Build roles/permissions
+      const allPermissions = new Set<string>();
+      let role = "viewer";
+      if (userWithRoles) {
+        for (const pr of userWithRoles.projectRoles) {
+          if (pr.project === project || pr.project === "global") {
+            role = pr.role.name;
+            for (const rp of pr.role.permissions) {
+              allPermissions.add(rp.permission.key);
+            }
+          }
+        }
+      }
+
+      // Issue a project-scoped access token
+      const projectTokens = await issueProjectToken(
+        {
+          id: user.id,
+          telegramId: user.telegramId.toString(),
+          username: user.username ?? null,
+          firstName: user.firstName,
+          photoUrl: user.photoUrl ?? null,
+          role,
+        },
+        project || "creative_center",
+        Array.from(allPermissions)
+      );
+
+      // Build redirect URL with token
+      const redirectTarget = new URL(validatedRedirect);
+      redirectTarget.searchParams.set("ac_token", projectTokens.accessToken);
+
+      const response = NextResponse.json({
+        redirect_url: redirectTarget.toString(),
+        token: sessionToken,
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          username: user.username,
+          telegramId: user.telegramId.toString(),
+        },
+      });
+
+      // Set cross-domain cookie readable by all subdomains
+      response.cookies.set(CROSS_DOMAIN_COOKIE, projectTokens.accessToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        domain: COOKIE_DOMAIN,
+        path: "/",
+        maxAge: 3600, // 1 hour (matches access token expiry)
+      });
+
+      return response;
+    }
+
+    // Standard login (no redirect) — just set session cookie
     return NextResponse.json({
-      token,
+      token: sessionToken,
       user: {
         id: user.id,
         firstName: user.firstName,

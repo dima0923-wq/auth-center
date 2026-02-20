@@ -15,15 +15,18 @@ export const metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; callbackUrl?: string }>;
+  searchParams: Promise<{ error?: string; callbackUrl?: string; redirect_url?: string }>;
 }) {
   const session = await auth();
-  if (session?.user) {
+  const params = await searchParams;
+
+  // If already logged in and no redirect, go to dashboard
+  if (session?.user && !params.redirect_url) {
     redirect("/dashboard");
   }
 
-  const params = await searchParams;
   const error = params.error;
+  const redirectUrl = params.redirect_url || undefined;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 p-4">
@@ -33,12 +36,17 @@ export default async function LoginPage({
             <Shield className="size-7" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Auth Center</h1>
+          {redirectUrl && (
+            <p className="text-sm text-muted-foreground text-center">
+              Sign in to continue
+            </p>
+          )}
         </div>
 
         <Card className="shadow-lg">
           <CardContent className="flex flex-col gap-4 pt-6">
             {error && <LoginError error={error} />}
-            <TelegramCodeLogin />
+            <TelegramCodeLogin redirectUrl={redirectUrl} />
           </CardContent>
         </Card>
       </div>

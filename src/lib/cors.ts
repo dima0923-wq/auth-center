@@ -4,6 +4,7 @@ const ALLOWED_ORIGINS = [
   "https://ag1.q37fh758g.click", // Creative Center
   "https://ag2.q37fh758g.click", // Retention Center
   "https://ag3.q37fh758g.click", // Traffic Center
+  "https://ag4.q37fh758g.click", // Auth Center
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:3002",

@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 
 const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "the_bot";
 
-export function TelegramCodeLogin() {
+interface TelegramCodeLoginProps {
+  redirectUrl?: string;
+}
+
+export function TelegramCodeLogin({ redirectUrl }: TelegramCodeLoginProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"code-request" | "code-verify">("code-request");
@@ -62,7 +66,11 @@ export function TelegramCodeLogin() {
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: codeSentTo.replace("@", ""), code: code.trim() }),
+        body: JSON.stringify({
+          username: codeSentTo.replace("@", ""),
+          code: code.trim(),
+          redirect_url: redirectUrl || undefined,
+        }),
       });
 
       const result = await res.json();
@@ -73,6 +81,13 @@ export function TelegramCodeLogin() {
         return;
       }
 
+      // If server returned a redirect_url, navigate there (cross-project flow)
+      if (result.redirect_url) {
+        window.location.href = result.redirect_url;
+        return;
+      }
+
+      // Standard flow — go to dashboard
       router.push("/dashboard");
       router.refresh();
     } catch {
