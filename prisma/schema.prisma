@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// -- Enums (SQLite doesn't support native enums, use String with validation) --
+
+model User {
+  id         String   @id @default(cuid())
+  telegramId BigInt   @unique
+  username   String?
+  firstName  String
+  lastName   String?
+  email      String?
+  photoUrl   String?
+  status     String   @default("ACTIVE") // ACTIVE | DISABLED | PENDING
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  projectRoles UserProjectRole[]
+  auditLogs    AuditLog[]
+  invitations  Invitation[]      @relation("InvitedByUser")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String  @default("telegram")
+  provider          String  @default("telegram")
+  providerAccountId String
+  authDate          Int?
+  hash              String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) // built-in roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions  RolePermission[]
+  projectRoles UserProjectRole[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "creative:agents:create"
+  name        String
+  description String?
+  project     String   // creative_center | traffic_center | retention_center | global
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@index([project])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserProjectRole {
+  id        String   @id @default(cuid())
+  userId    String
+  project   String   // creative_center | traffic_center | retention_center | global
+  roleId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, project])
+  @@index([userId])
+  @@index([project])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String   // e.g. "user.login", "role.create", "permission.assign"
+  resource  String?  // e.g. "user:clxyz123", "role:admin"
+  details   String?  // JSON string with extra context
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Invitation {
+  id               String   @id @default(cuid())
+  telegramUsername String
+  invitedById      String
+  roleId           String
+  project          String   // creative_center | traffic_center | retention_center | global
+  status           String   @default("PENDING") // PENDING | ACCEPTED | EXPIRED | REVOKED
+  token            String   @unique @default(cuid())
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  invitedBy User @relation("InvitedByUser", fields: [invitedById], references: [id])
+
+  @@index([telegramUsername])
+  @@index([token])
+  @@index([status])
+}

@@ -1,0 +1,9 @@
+import { NextResponse } from "next/server";
+import { getPermissionMatrix } from "@/lib/permissions";
+import { withPermission } from "@/lib/auth-middleware";
+
+// GET /api/permissions/matrix — get full role-permission matrix
+export const GET = withPermission("auth:permissions:read", async () => {
+  const matrix = await getPermissionMatrix();
+  return NextResponse.json(matrix);
+});
