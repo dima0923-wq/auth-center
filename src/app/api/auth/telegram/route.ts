@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Upsert user by telegramId (BigInt in schema)
+    // Look up user by telegramId
     const telegramId = BigInt(body.id);
 
     let user = await prisma.user.findUnique({
@@ -44,6 +44,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (user) {
+      // Existing user — check status
+      if (user.status === "DISABLED") {
+        return NextResponse.json(
+          { error: "Account is disabled. Contact an administrator." },
+          { status: 403 }
+        );
+      }
+
       // Update existing user's info from Telegram
       user = await prisma.user.update({
         where: { id: user.id },
@@ -55,25 +63,88 @@ export async function POST(req: NextRequest) {
         },
       });
     } else {
-      // Create new user
-      user = await prisma.user.create({
-        data: {
-          telegramId,
-          firstName: body.first_name,
-          lastName: body.last_name || null,
-          username: body.username || null,
-          photoUrl: body.photo_url || null,
-          status: "ACTIVE",
-        },
-      });
-    }
+      // New user — check if this is the very first user (bootstrap Super Admin)
+      const userCount = await prisma.user.count();
 
-    // Check if user is disabled
-    if (user.status === "DISABLED") {
-      return NextResponse.json(
-        { error: "Account is disabled" },
-        { status: 403 }
-      );
+      if (userCount === 0) {
+        // First user bootstrap: create as Super Admin
+        user = await prisma.user.create({
+          data: {
+            telegramId,
+            firstName: body.first_name,
+            lastName: body.last_name || null,
+            username: body.username || null,
+            photoUrl: body.photo_url || null,
+            status: "ACTIVE",
+          },
+        });
+
+        // Assign Super Admin role for global scope
+        const superAdminRole = await prisma.role.findUnique({
+          where: { name: "Super Admin" },
+        });
+        if (superAdminRole) {
+          await prisma.userProjectRole.create({
+            data: {
+              userId: user.id,
+              project: "global",
+              roleId: superAdminRole.id,
+            },
+          });
+        }
+      } else {
+        // Not first user — check for invitation by @username
+        const username = body.username;
+        if (!username) {
+          return NextResponse.json(
+            { error: "Access denied. You need an invitation to access this platform." },
+            { status: 403 }
+          );
+        }
+
+        const invitation = await prisma.invitation.findFirst({
+          where: {
+            telegramUsername: username,
+            status: "PENDING",
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (!invitation) {
+          return NextResponse.json(
+            { error: "Access denied. You need an invitation to access this platform." },
+            { status: 403 }
+          );
+        }
+
+        // Create user from invitation
+        user = await prisma.user.create({
+          data: {
+            telegramId,
+            firstName: body.first_name,
+            lastName: body.last_name || null,
+            username: username,
+            photoUrl: body.photo_url || null,
+            status: "ACTIVE",
+          },
+        });
+
+        // Assign the invited role and project scope
+        await prisma.userProjectRole.create({
+          data: {
+            userId: user.id,
+            project: invitation.project,
+            roleId: invitation.roleId,
+          },
+        });
+
+        // Mark invitation as accepted
+        await prisma.invitation.update({
+          where: { id: invitation.id },
+          data: { status: "ACCEPTED" },
+        });
+      }
     }
 
     // Issue session JWT and set cookie
