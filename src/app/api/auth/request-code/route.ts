@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     if (!chatId) {
       // Also check existing users in DB who may have a stored chat_id
       const existingUser = await prisma.user.findFirst({
-        where: { username: { equals: username, mode: "insensitive" } },
+        where: { username },
       });
 
       if (!existingUser) {
