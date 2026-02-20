@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
 
     // Send code via Telegram Bot API
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "the_bot";
     if (!botToken) {
       return NextResponse.json({ error: "Bot not configured" }, { status: 500 });
     }
@@ -53,14 +54,14 @@ export async function POST(req: NextRequest) {
 
       if (!existingUser) {
         return NextResponse.json({
-          error: `Bot hasn't seen @${username} yet. Please open @fdsjgdsfigj2n432bot in Telegram and send /start first.`,
+          error: `Bot hasn't seen @${username} yet. Please open @${botName} in Telegram and send /start first.`,
         }, { status: 400 });
       }
     }
 
     if (!chatId) {
       return NextResponse.json({
-        error: `Please send /start to @fdsjgdsfigj2n432bot in Telegram first, then try again.`,
+        error: `Please send /start to @${botName} in Telegram first, then try again.`,
       }, { status: 400 });
     }
 

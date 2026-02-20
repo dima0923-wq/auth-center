@@ -60,11 +60,31 @@ export default function PermissionsPage() {
   useEffect(() => {
     async function fetchPermissions() {
       try {
-        const res = await fetch("/api/users/me/permissions")
+        // /api/users/me returns projectRoles with nested role.permissions
+        const res = await fetch("/api/users/me")
         if (res.ok) {
           const data = await res.json()
-          if (Array.isArray(data) && data.length > 0) {
-            setPermissions(data)
+          if (data.projectRoles && Array.isArray(data.projectRoles)) {
+            // Build granted permission set per project
+            const projectPerms: ProjectPermissions[] = DEFAULT_PERMISSIONS.map((dp) => {
+              // Find matching projectRole (project IDs use underscores: creative_center)
+              const projectKey = dp.projectId.replace(/-/g, "_")
+              const pr = data.projectRoles.find((r: { project: string }) => r.project === projectKey)
+              const grantedKeys = new Set<string>()
+              if (pr?.role?.permissions) {
+                for (const rp of pr.role.permissions) {
+                  grantedKeys.add(rp.key ?? rp.name)
+                }
+              }
+              return {
+                ...dp,
+                permissions: dp.permissions.map((p) => ({
+                  ...p,
+                  granted: grantedKeys.has(p.id) || grantedKeys.has(p.name),
+                })),
+              }
+            })
+            setPermissions(projectPerms)
           }
         }
       } catch {

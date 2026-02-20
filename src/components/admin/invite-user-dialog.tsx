@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -28,8 +28,6 @@ interface ProjectRoleSelect {
   role: string
 }
 
-const ROLES = ["admin", "editor", "viewer", "none"] as const
-
 interface InviteUserDialogProps {
   projects: { projectId: string; projectName: string }[]
   onInvite: (username: string, projectRoles: { projectId: string; role: string }[]) => Promise<void>
@@ -38,11 +36,21 @@ interface InviteUserDialogProps {
 export function InviteUserDialog({ projects, onInvite }: InviteUserDialogProps) {
   const [open, setOpen] = useState(false)
   const [username, setUsername] = useState("")
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
   const [projectRoles, setProjectRoles] = useState<ProjectRoleSelect[]>(
     projects.map((p) => ({ ...p, role: "none" }))
   )
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/roles")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: { name: string }[]) => {
+        setAvailableRoles(data.map((r) => r.name))
+      })
+      .catch(() => {})
+  }, [])
 
   function reset() {
     setUsername("")
@@ -141,11 +149,10 @@ export function InviteUserDialog({ projects, onInvite }: InviteUserDialogProps) 
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {ROLES.map((role) => (
+                        <SelectItem value="none">No Access</SelectItem>
+                        {availableRoles.map((role) => (
                           <SelectItem key={role} value={role}>
-                            {role === "none"
-                              ? "No Access"
-                              : role.charAt(0).toUpperCase() + role.slice(1)}
+                            {role}
                           </SelectItem>
                         ))}
                       </SelectContent>

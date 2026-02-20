@@ -1,6 +1,6 @@
 /**
  * API helpers for roles and permissions management.
- * These call the backend API routes built by rbac-dev.
+ * These call the backend API routes.
  */
 
 export interface Permission {
@@ -45,179 +45,177 @@ export interface UpdateRoleInput {
   permissionIds?: string[];
 }
 
-// --- Mock data for development until backend is ready ---
+// --- Helper to convert API permission catalog to flat Permission[] ---
 
-const PROJECTS = [
-  { id: "creative-center", name: "Creative Center" },
-  { id: "traffic-center", name: "Traffic Center" },
-  { id: "retention-center", name: "Retention Center" },
-];
-
-const RESOURCES = ["campaigns", "creatives", "reports", "settings", "users"];
-const ACTIONS = ["view", "create", "edit", "delete"];
-
-function generatePermissions(): Permission[] {
-  const perms: Permission[] = [];
-  let i = 0;
-  for (const project of PROJECTS) {
-    for (const resource of RESOURCES) {
-      for (const action of ACTIONS) {
-        i++;
-        perms.push({
-          id: `perm-${i}`,
-          key: `${project.id}:${resource}:${action}`,
-          name: `${action.charAt(0).toUpperCase() + action.slice(1)} ${resource}`,
-          description: `Can ${action} ${resource} in ${project.name}`,
-          resource,
-          action,
-          projectId: project.id,
-          projectName: project.name,
-        });
-      }
-    }
-  }
-  return perms;
+interface CatalogPermission {
+  key: string;
+  name: string;
+  description: string;
+  id?: string;
 }
 
-const ALL_PERMISSIONS = generatePermissions();
+interface CatalogGroup {
+  project: string;
+  permissions: CatalogPermission[];
+}
 
-const MOCK_ROLES: Role[] = [
-  {
-    id: "role-admin",
-    name: "Admin",
-    description: "Full access to all projects and resources",
-    isSystem: true,
-    permissions: ALL_PERMISSIONS,
-    userCount: 2,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "role-manager",
-    name: "Manager",
-    description: "Can manage campaigns and creatives, view reports",
-    isSystem: true,
-    permissions: ALL_PERMISSIONS.filter(
-      (p) => p.action !== "delete" || p.resource === "campaigns"
-    ),
-    userCount: 5,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "role-viewer",
-    name: "Viewer",
-    description: "Read-only access to all projects",
-    isSystem: true,
-    permissions: ALL_PERMISSIONS.filter((p) => p.action === "view"),
-    userCount: 12,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "role-creative-editor",
-    name: "Creative Editor",
-    description: "Full access to Creative Center, view-only elsewhere",
-    isSystem: false,
-    permissions: [
-      ...ALL_PERMISSIONS.filter((p) => p.projectId === "creative-center"),
-      ...ALL_PERMISSIONS.filter(
-        (p) => p.projectId !== "creative-center" && p.action === "view"
-      ),
-    ],
-    userCount: 3,
-    createdAt: "2026-02-10T00:00:00Z",
-    updatedAt: "2026-02-15T00:00:00Z",
-  },
-];
+function catalogToPermissions(groups: CatalogGroup[]): Permission[] {
+  const result: Permission[] = [];
+  for (const group of groups) {
+    for (const p of group.permissions) {
+      const parts = p.key.split(":");
+      result.push({
+        id: p.id || p.key,
+        key: p.key,
+        name: p.name,
+        description: p.description,
+        resource: parts[1] || "",
+        action: parts[2] || "",
+        projectId: group.project,
+        projectName: group.project.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      });
+    }
+  }
+  return result;
+}
 
-const MOCK_USERS: RoleUser[] = [
-  {
-    id: "u1",
-    email: "admin@example.com",
-    name: "Admin User",
-    image: null,
-    assignedAt: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "u2",
-    email: "manager@example.com",
-    name: "Manager User",
-    image: null,
-    assignedAt: "2026-01-15T00:00:00Z",
-  },
-  {
-    id: "u3",
-    email: "viewer@example.com",
-    name: "Viewer User",
-    image: null,
-    assignedAt: "2026-02-01T00:00:00Z",
-  },
-];
+// --- API functions ---
 
-// --- API functions (using mock data, replace with fetch calls when backend is ready) ---
+async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API error: ${res.status}`);
+  }
+  return res;
+}
 
 export async function fetchRoles(): Promise<Role[]> {
-  // TODO: Replace with: const res = await fetch("/api/roles"); return res.json();
-  return MOCK_ROLES;
+  const res = await apiFetch("/api/roles");
+  const data = await res.json();
+
+  return data.map((r: Record<string, unknown>) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description || "",
+    isSystem: r.isSystem ?? false,
+    permissions: [], // permissions not included in list endpoint
+    userCount: (r._count as Record<string, number>)?.projectRoles ?? 0,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
 }
 
 export async function fetchRole(id: string): Promise<Role | null> {
-  // TODO: Replace with: const res = await fetch(`/api/roles/${id}`); return res.json();
-  return MOCK_ROLES.find((r) => r.id === id) ?? null;
+  try {
+    // No dedicated GET /api/roles/[id] — use list endpoint and filter
+    const [rolesRes, permsRes] = await Promise.all([
+      apiFetch("/api/roles"),
+      apiFetch(`/api/roles/${id}/permissions`),
+    ]);
+
+    const allRoles = await rolesRes.json();
+    const permsData = await permsRes.json();
+
+    const role = allRoles.find((r: Record<string, unknown>) => r.id === id);
+    if (!role) return null;
+
+    const permissions: Permission[] = (permsData.permissions || []).map(
+      (p: Record<string, unknown>) => {
+        const parts = (p.key as string).split(":");
+        return {
+          id: p.id,
+          key: p.key,
+          name: p.name,
+          description: p.description || "",
+          resource: parts[1] || "",
+          action: parts[2] || "",
+          projectId: parts[0] || "",
+          projectName: (parts[0] as string || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        };
+      }
+    );
+
+    return {
+      id: role.id,
+      name: role.name,
+      description: role.description || "",
+      isSystem: role.isSystem ?? false,
+      permissions,
+      userCount: role._count?.projectRoles ?? 0,
+      createdAt: role.createdAt,
+      updatedAt: role.updatedAt,
+    };
+  } catch {
+    return null;
+  }
 }
 
-export async function fetchRoleUsers(roleId: string): Promise<RoleUser[]> {
-  // TODO: Replace with: const res = await fetch(`/api/roles/${roleId}/users`); return res.json();
-  void roleId;
-  return MOCK_USERS.slice(0, Math.floor(Math.random() * 3) + 1);
+export async function fetchRoleUsers(_roleId: string): Promise<RoleUser[]> {
+  // No dedicated users-by-role endpoint exists yet — return empty
+  return [];
 }
 
 export async function fetchPermissions(): Promise<Permission[]> {
-  // TODO: Replace with: const res = await fetch("/api/permissions"); return res.json();
-  return ALL_PERMISSIONS;
+  const res = await apiFetch("/api/permissions");
+  const groups: CatalogGroup[] = await res.json();
+  return catalogToPermissions(groups);
 }
 
 export async function createRole(input: CreateRoleInput): Promise<Role> {
-  // TODO: Replace with: const res = await fetch("/api/roles", { method: "POST", body: JSON.stringify(input) }); return res.json();
-  const newRole: Role = {
-    id: `role-${Date.now()}`,
-    name: input.name,
-    description: input.description,
-    isSystem: false,
-    permissions: ALL_PERMISSIONS.filter((p) =>
-      input.permissionIds.includes(p.id)
-    ),
-    userCount: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  MOCK_ROLES.push(newRole);
-  return newRole;
+  // Step 1: Create the role
+  const res = await apiFetch("/api/roles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: input.name, description: input.description }),
+  });
+  const role = await res.json();
+
+  // Step 2: Assign permissions if any
+  if (input.permissionIds.length > 0) {
+    await apiFetch(`/api/roles/${role.id}/permissions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ permissionIds: input.permissionIds }),
+    });
+  }
+
+  // Return the full role
+  const full = await fetchRole(role.id);
+  return full!;
 }
 
 export async function updateRole(
   id: string,
   input: UpdateRoleInput
 ): Promise<Role> {
-  // TODO: Replace with: const res = await fetch(`/api/roles/${id}`, { method: "PATCH", body: JSON.stringify(input) }); return res.json();
-  const role = MOCK_ROLES.find((r) => r.id === id);
-  if (!role) throw new Error("Role not found");
-  if (input.name) role.name = input.name;
-  if (input.description) role.description = input.description;
-  if (input.permissionIds) {
-    role.permissions = ALL_PERMISSIONS.filter((p) =>
-      input.permissionIds!.includes(p.id)
-    );
+  // Update name/description if provided
+  if (input.name !== undefined || input.description !== undefined) {
+    await apiFetch(`/api/roles/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      }),
+    });
   }
-  role.updatedAt = new Date().toISOString();
-  return role;
+
+  // Update permissions if provided
+  if (input.permissionIds) {
+    await apiFetch(`/api/roles/${id}/permissions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ permissionIds: input.permissionIds }),
+    });
+  }
+
+  const full = await fetchRole(id);
+  return full!;
 }
 
 export async function deleteRole(id: string): Promise<void> {
-  // TODO: Replace with: await fetch(`/api/roles/${id}`, { method: "DELETE" });
-  const idx = MOCK_ROLES.findIndex((r) => r.id === id);
-  if (idx !== -1) MOCK_ROLES.splice(idx, 1);
+  await apiFetch(`/api/roles/${id}`, { method: "DELETE" });
 }
 
 /** Group permissions by project */

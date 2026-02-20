@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { withPermission } from "@/lib/auth-middleware";
 
 // GET /api/roles/[id]/permissions — get permissions for a role
-export const GET = withPermission("auth:permissions:read", async (_req, context) => {
+export const GET = withPermission("global:roles:view", async (_req, context) => {
   const { id } = await context.params;
 
   const role = await prisma.role.findUnique({
@@ -26,7 +26,7 @@ export const GET = withPermission("auth:permissions:read", async (_req, context)
 });
 
 // PUT /api/roles/[id]/permissions — set permissions for a role
-export const PUT = withPermission("auth:permissions:assign", async (req, context) => {
+export const PUT = withPermission("global:roles:manage", async (req, context) => {
   const { id } = await context.params;
   const body = await req.json();
   const { permissionIds } = body;

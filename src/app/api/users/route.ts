@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   }
 
   const permissions = (session.user as any).permissions as string[] | undefined;
-  if (!permissions?.includes("users:read")) {
+  if (!permissions?.includes("global:users:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
   }
 
   const permissions = (session.user as any).permissions as string[] | undefined;
-  if (!permissions?.includes("users:create")) {
+  if (!permissions?.includes("global:users:create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

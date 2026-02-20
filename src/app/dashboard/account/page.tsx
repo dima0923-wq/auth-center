@@ -36,33 +36,34 @@ const MOCK_USER: UserProfile = {
   telegramConnected: true,
 }
 
-const PROJECTS: ProjectAccess[] = [
-  {
-    projectId: "creative-center",
-    projectName: "Creative Center",
-    projectUrl: "https://ag1.q37fh758g.click",
-    roles: [],
-    hasAccess: false,
-  },
-  {
-    projectId: "traffic-center",
-    projectName: "Traffic Center",
-    projectUrl: "https://ag3.q37fh758g.click",
-    roles: [],
-    hasAccess: false,
-  },
-  {
-    projectId: "retention-center",
-    projectName: "Retention Center",
-    projectUrl: "http://ag2.q37fh758g.click",
-    roles: [],
-    hasAccess: false,
-  },
-]
+// Known projects — used as base list, enriched with user's actual roles
+const PROJECT_META: Record<string, { name: string; url: string }> = {
+  creative_center: { name: "Creative Center", url: "https://ag1.q37fh758g.click" },
+  traffic_center: { name: "Traffic Center", url: "https://ag3.q37fh758g.click" },
+  retention_center: { name: "Retention Center", url: "http://ag2.q37fh758g.click" },
+}
+
+function buildProjectAccess(projectRoles?: { project: string; role: { name: string } }[]): ProjectAccess[] {
+  const rolesByProject: Record<string, string[]> = {}
+  if (projectRoles) {
+    for (const pr of projectRoles) {
+      if (!rolesByProject[pr.project]) rolesByProject[pr.project] = []
+      rolesByProject[pr.project].push(pr.role.name)
+    }
+  }
+
+  return Object.entries(PROJECT_META).map(([projectId, meta]) => ({
+    projectId,
+    projectName: meta.name,
+    projectUrl: meta.url,
+    roles: rolesByProject[projectId] ?? [],
+    hasAccess: !!rolesByProject[projectId],
+  }))
+}
 
 export default function AccountPage() {
   const [user, setUser] = useState<UserProfile>(MOCK_USER)
-  const [projects, setProjects] = useState<ProjectAccess[]>(PROJECTS)
+  const [projects, setProjects] = useState<ProjectAccess[]>(buildProjectAccess())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -73,26 +74,18 @@ export default function AccountPage() {
           const data = await res.json()
           setUser({
             id: data.id,
-            name: [data.firstName, data.lastName].filter(Boolean).join(" ") || data.name || "Unknown",
+            name: [data.firstName, data.lastName].filter(Boolean).join(" ") || "Unknown",
             firstName: data.firstName ?? "Unknown",
             lastName: data.lastName ?? null,
             username: data.username ?? null,
-            photoUrl: data.photoUrl ?? data.image ?? null,
+            photoUrl: data.photoUrl ?? null,
             status: data.status?.toLowerCase() ?? "active",
             createdAt: data.createdAt ?? new Date().toISOString(),
             telegramConnected: !!data.telegramId,
           })
-        }
-      } catch {
-        // API not available yet
-      }
-
-      try {
-        const res = await fetch("/api/users/me/projects")
-        if (res.ok) {
-          const data = await res.json()
-          if (Array.isArray(data) && data.length > 0) {
-            setProjects(data)
+          // projectRoles comes from /api/users/me response
+          if (data.projectRoles) {
+            setProjects(buildProjectAccess(data.projectRoles))
           }
         }
       } catch {
@@ -106,13 +99,18 @@ export default function AccountPage() {
   }, [])
 
   async function handleUpdateName(name: string) {
+    // PUT /api/users/me expects firstName (and optionally lastName)
+    const parts = name.trim().split(/\s+/)
+    const firstName = parts[0] || name
+    const lastName = parts.length > 1 ? parts.slice(1).join(" ") : null
+
     const res = await fetch("/api/users/me", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ firstName, lastName }),
     })
     if (res.ok) {
-      setUser((prev) => ({ ...prev, name }))
+      setUser((prev) => ({ ...prev, name, firstName, lastName }))
     } else {
       throw new Error("Failed to update name")
     }

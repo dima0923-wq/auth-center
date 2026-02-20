@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { withPermission } from "@/lib/auth-middleware";
 
 // PUT /api/roles/[id] — update role
-export const PUT = withPermission("auth:roles:update", async (req, context) => {
+export const PUT = withPermission("global:roles:manage", async (req, context) => {
   const { id } = await context.params;
   const body = await req.json();
   const { name, description } = body;
@@ -34,7 +34,7 @@ export const PUT = withPermission("auth:roles:update", async (req, context) => {
 });
 
 // DELETE /api/roles/[id] — delete custom role (not system roles)
-export const DELETE = withPermission("auth:roles:delete", async (_req, context) => {
+export const DELETE = withPermission("global:roles:manage", async (_req, context) => {
   const { id } = await context.params;
 
   const role = await prisma.role.findUnique({ where: { id } });

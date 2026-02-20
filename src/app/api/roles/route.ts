@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { withPermission } from "@/lib/auth-middleware";
 
 // GET /api/roles — list all roles
-export const GET = withPermission("auth:roles:read", async () => {
+export const GET = withPermission("global:roles:view", async () => {
   const roles = await prisma.role.findMany({
     include: {
       _count: { select: { projectRoles: true, permissions: true } },
@@ -15,7 +15,7 @@ export const GET = withPermission("auth:roles:read", async () => {
 });
 
 // POST /api/roles — create custom role
-export const POST = withPermission("auth:roles:create", async (req) => {
+export const POST = withPermission("global:roles:manage", async (req) => {
   const body = await req.json();
   const { name, description } = body;
 

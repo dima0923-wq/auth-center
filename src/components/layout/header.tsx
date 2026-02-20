@@ -14,12 +14,11 @@ import {
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/dashboard/profile": "Profile",
-  "/dashboard/permissions": "My Permissions",
+  "/dashboard/account": "Profile",
+  "/dashboard/account/permissions": "My Permissions",
   "/dashboard/admin/users": "User Management",
   "/dashboard/admin/roles": "Role Management",
   "/dashboard/admin/permissions": "Permission Management",
-  "/dashboard/projects": "Projects",
 }
 
 function Breadcrumbs() {
@@ -103,7 +102,7 @@ export function Header({
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/profile">
+            <Link href="/dashboard/account">
               <Settings className="size-4" />
               Settings
             </Link>

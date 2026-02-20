@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 
   const permissions = (session.user as any).permissions as string[] | undefined;
-  if (!permissions?.includes("users:read")) {
+  if (!permissions?.includes("global:users:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   }
 
   const permissions = (session.user as any).permissions as string[] | undefined;
-  if (!permissions?.includes("users:update")) {
+  if (!permissions?.includes("global:users:edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -174,7 +174,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   }
 
   const permissions = (session.user as any).permissions as string[] | undefined;
-  if (!permissions?.includes("users:delete")) {
+  if (!permissions?.includes("global:users:delete")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

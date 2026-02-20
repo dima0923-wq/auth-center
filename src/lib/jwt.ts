@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "auth-center-jwt-secret-change-in-production"
+  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production"
 );
 
 const ACCESS_TOKEN_EXPIRY = "1h";

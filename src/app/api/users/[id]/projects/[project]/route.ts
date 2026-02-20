@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { PROJECTS, isValidProject, type ProjectId } from "@/lib/projects";
-
-type Params = Promise<{ id: string; project: string }>;
+import { withPermission } from "@/lib/auth-middleware";
 
 function formatRole(role: { id: string; name: string; permissions: { permission: { name: string } }[] }) {
   return {
@@ -13,7 +12,10 @@ function formatRole(role: { id: string; name: string; permissions: { permission:
 }
 
 // GET /api/users/[id]/projects/[project] — get user's role for a specific project
-export async function GET(_request: NextRequest, { params }: { params: Params }) {
+export const GET = withPermission("global:users:view", async (
+  _request,
+  { params }
+) => {
   const { id: userId, project } = await params;
 
   if (!isValidProject(project)) {
@@ -47,10 +49,13 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
     role: formatRole(record.role),
     assignedAt: record.createdAt,
   });
-}
+});
 
 // PUT /api/users/[id]/projects/[project] — assign or change user's role for a project
-export async function PUT(request: NextRequest, { params }: { params: Params }) {
+export const PUT = withPermission("global:users:edit", async (
+  request,
+  { params }
+) => {
   const { id: userId, project } = await params;
 
   if (!isValidProject(project)) {
@@ -94,13 +99,13 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
     role: formatRole(record.role),
     assignedAt: record.createdAt,
   });
-}
+});
 
 // DELETE /api/users/[id]/projects/[project] — remove user's access to a project
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Params }
-) {
+export const DELETE = withPermission("global:users:delete", async (
+  _request,
+  { params }
+) => {
   const { id: userId, project } = await params;
 
   if (!isValidProject(project)) {
@@ -131,4 +136,4 @@ export async function DELETE(
   });
 
   return NextResponse.json({ success: true, message: "Project access removed" });
-}
+});

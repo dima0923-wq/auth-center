@@ -5,7 +5,6 @@ import {
   Users,
   KeyRound,
   Activity,
-  ArrowRight,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProjectSwitcher } from "./project-switcher"
@@ -16,6 +15,7 @@ interface DashboardHomeProps {
     email?: string | null
     image?: string | null
     firstName?: string | null
+    roles?: Record<string, string>
   }
 }
 
@@ -84,22 +84,11 @@ export function DashboardHome({ user }: DashboardHomeProps) {
 
       {/* Projects */}
       <div>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <h3 className="text-lg font-semibold">Your Projects</h3>
-          <a
-            href="/dashboard/projects"
-            className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            View all
-            <ArrowRight className="size-3.5" />
-          </a>
         </div>
         <ProjectSwitcher
-          userRoles={{
-            creative: "Admin",
-            traffic: "Admin",
-            retention: "Admin",
-          }}
+          userRoles={user.roles ?? {}}
         />
       </div>
 

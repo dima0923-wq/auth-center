@@ -28,6 +28,14 @@ import {
   ShieldCheck,
 } from "lucide-react"
 
+const PROJECT_NAMES: Record<string, string> = {
+  creative_center: "Creative Center",
+  traffic_center: "Traffic Center",
+  retention_center: "Retention Center",
+}
+
+const ALL_PROJECTS = ["creative_center", "traffic_center", "retention_center"]
+
 interface UserDetail {
   id: string
   name: string
@@ -52,16 +60,43 @@ interface UserDetail {
 }
 
 async function fetchUser(id: string): Promise<UserDetail> {
-  const res = await fetch(`/api/admin/users/${id}`)
+  const res = await fetch(`/api/users/${id}`)
   if (!res.ok) throw new Error("Failed to fetch user")
-  return res.json()
+  const u = await res.json()
+
+  // Build project roles map from API response
+  const assignedProjects = new Set(
+    (u.projectRoles ?? []).map((pr: any) => pr.project)
+  )
+
+  const projectRoles = ALL_PROJECTS.map((projectId) => {
+    const assigned = (u.projectRoles ?? []).find((pr: any) => pr.project === projectId)
+    return {
+      projectId,
+      projectName: PROJECT_NAMES[projectId] ?? projectId,
+      currentRole: assigned?.role?.name ?? null,
+    }
+  })
+
+  return {
+    id: u.id,
+    name: [u.firstName, u.lastName].filter(Boolean).join(" ") || "Unknown",
+    username: u.username,
+    image: u.photoUrl,
+    status: (u.status ?? "ACTIVE").toLowerCase() as "active" | "disabled" | "pending",
+    createdAt: u.createdAt,
+    lastLoginAt: null,
+    telegramConnected: !!u.telegramId,
+    projectRoles,
+    auditLog: [],
+  }
 }
 
 async function updateUserStatus(id: string, status: "active" | "disabled") {
-  const res = await fetch(`/api/admin/users/${id}/status`, {
-    method: "PATCH",
+  const res = await fetch(`/api/users/${id}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status: status.toUpperCase() }),
   })
   if (!res.ok) throw new Error("Failed to update status")
 }
@@ -70,12 +105,35 @@ async function updateUserRoles(
   id: string,
   updates: { projectId: string; role: string | null }[]
 ) {
-  const res = await fetch(`/api/admin/users/${id}/roles`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ roles: updates }),
-  })
-  if (!res.ok) throw new Error("Failed to update roles")
+  // Fetch available roles to map role names to IDs
+  const rolesRes = await fetch("/api/roles")
+  const roles: { id: string; name: string }[] = rolesRes.ok ? await rolesRes.json() : []
+  const roleMap = new Map(roles.map((r) => [r.name.toLowerCase(), r.id]))
+
+  // Update each project individually via the per-project endpoint
+  const results = await Promise.all(
+    updates.map(async ({ projectId, role }) => {
+      if (!role) {
+        // Remove access
+        const res = await fetch(`/api/users/${id}/projects/${projectId}`, {
+          method: "DELETE",
+        })
+        return res.ok
+      }
+      const roleId = roleMap.get(role.toLowerCase())
+      if (!roleId) return false
+      const res = await fetch(`/api/users/${id}/projects/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleId }),
+      })
+      return res.ok
+    })
+  )
+
+  if (results.some((ok) => !ok)) {
+    throw new Error("Failed to update some roles")
+  }
 }
 
 export default function AdminUserDetailPage() {

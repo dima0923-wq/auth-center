@@ -39,8 +39,8 @@ interface NavItem {
 }
 
 const accountNav: NavItem[] = [
-  { label: "Profile", href: "/dashboard/profile", icon: <User className="size-4" /> },
-  { label: "Permissions", href: "/dashboard/permissions", icon: <KeyRound className="size-4" /> },
+  { label: "Profile", href: "/dashboard/account", icon: <User className="size-4" /> },
+  { label: "Permissions", href: "/dashboard/account/permissions", icon: <KeyRound className="size-4" /> },
 ]
 
 const adminNav: NavItem[] = [
@@ -212,7 +212,7 @@ function SidebarContent({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="w-56">
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/profile">
+              <Link href="/dashboard/account">
                 <Settings className="size-4" />
                 Settings
               </Link>

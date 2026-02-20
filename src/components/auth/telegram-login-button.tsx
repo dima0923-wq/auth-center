@@ -21,6 +21,8 @@ declare global {
   }
 }
 
+const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "the_bot";
+
 export function TelegramLoginButton() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,10 +187,10 @@ export function TelegramLoginButton() {
       {mode === "code-request" && (
         <div className="w-full flex flex-col gap-3">
           <p className="text-sm text-muted-foreground text-center">
-            Enter your Telegram username. We&apos;ll send a login code via <strong>@fdsjgdsfigj2n432bot</strong>.
+            Enter your Telegram username. We&apos;ll send a login code via <strong>@{botUsername}</strong>.
           </p>
           <p className="text-xs text-muted-foreground text-center">
-            First, open Telegram and send <strong>/start</strong> to <strong>@fdsjgdsfigj2n432bot</strong>
+            First, open Telegram and send <strong>/start</strong> to <strong>@{botUsername}</strong>
           </p>
           <Input
             placeholder="@username"

@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { PROJECTS, isValidProject, type ProjectId } from "@/lib/projects";
+import { withPermission } from "@/lib/auth-middleware";
 
 // GET /api/users/[id]/projects — list user's roles across all projects
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withPermission("global:users:view", async (
+  _request,
+  { params }
+) => {
   const { id: userId } = await params;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -34,4 +35,4 @@ export async function GET(
     }));
 
   return NextResponse.json({ userId, projects });
-}
+});

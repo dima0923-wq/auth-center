@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
@@ -19,12 +19,11 @@ interface ProjectRole {
   currentRole: string | null
 }
 
-const AVAILABLE_ROLES = ["admin", "editor", "viewer", "none"] as const
-
 const roleColors: Record<string, string> = {
-  admin: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  editor: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  viewer: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  "Super Admin": "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  "Project Admin": "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  Manager: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  Viewer: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 }
 
 interface UserRoleEditorProps {
@@ -33,12 +32,22 @@ interface UserRoleEditorProps {
 }
 
 export function UserRoleEditor({ projects, onSave }: UserRoleEditorProps) {
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
   const [roles, setRoles] = useState<Record<string, string>>(
     Object.fromEntries(
       projects.map((p) => [p.projectId, p.currentRole ?? "none"])
     )
   )
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/roles")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: { name: string }[]) => {
+        setAvailableRoles(data.map((r) => r.name))
+      })
+      .catch(() => {})
+  }, [])
 
   const hasChanges = projects.some(
     (p) => (p.currentRole ?? "none") !== roles[p.projectId]
@@ -93,13 +102,14 @@ export function UserRoleEditor({ projects, onSave }: UserRoleEditorProps) {
                   setRoles((prev) => ({ ...prev, [project.projectId]: value }))
                 }
               >
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-[160px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {AVAILABLE_ROLES.map((role) => (
+                  <SelectItem value="none">No Access</SelectItem>
+                  {availableRoles.map((role) => (
                     <SelectItem key={role} value={role}>
-                      {role === "none" ? "No Access" : role.charAt(0).toUpperCase() + role.slice(1)}
+                      {role}
                     </SelectItem>
                   ))}
                 </SelectContent>

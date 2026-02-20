@@ -115,7 +115,7 @@ export async function auth(): Promise<Session | null> {
       }
     }
 
-    const isAdmin = !!roles["global"] && roles["global"].toLowerCase() === "admin";
+    const isAdmin = !!roles["global"] && roles["global"].toLowerCase().includes("admin");
 
     return {
       user: {
