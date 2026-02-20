@@ -15,10 +15,10 @@ import {
   MessageSquare,
   ChevronLeft,
   Settings,
-  LogOut,
   ExternalLink,
   Menu,
 } from "lucide-react"
+import { LogoutButton } from "@/components/auth/logout-button"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -218,12 +218,7 @@ function SidebarContent({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/api/auth/logout">
-                <LogOut className="size-4" />
-                Sign Out
-              </Link>
-            </DropdownMenuItem>
+            <LogoutButton />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

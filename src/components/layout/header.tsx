@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronRight, Home, Settings, LogOut } from "lucide-react"
+import { ChevronRight, Home, Settings } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { LogoutButton } from "@/components/auth/logout-button"
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -108,12 +109,7 @@ export function Header({
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href="/api/auth/logout">
-              <LogOut className="size-4" />
-              Sign Out
-            </Link>
-          </DropdownMenuItem>
+          <LogoutButton />
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
