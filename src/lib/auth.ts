@@ -3,9 +3,9 @@ import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/db";
 
 const SESSION_COOKIE = "auth-session";
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production"
-);
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret && process.env.NODE_ENV === "production") throw new Error("JWT_SECRET must be set in production");
+const JWT_SECRET = new TextEncoder().encode(jwtSecret || "dev-jwt-secret-change-in-production");
 const SESSION_EXPIRY = "7d";
 const ISSUER = "auth-center";
 

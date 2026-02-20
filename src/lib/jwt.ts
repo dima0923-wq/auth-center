@@ -1,8 +1,8 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production"
-);
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret && process.env.NODE_ENV === "production") throw new Error("JWT_SECRET must be set in production");
+const JWT_SECRET = new TextEncoder().encode(jwtSecret || "dev-jwt-secret-change-in-production");
 
 const ACCESS_TOKEN_EXPIRY = "1h";
 const REFRESH_TOKEN_EXPIRY = "7d";

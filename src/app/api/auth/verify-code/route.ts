@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "crypto";
 import { createSessionToken } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { loginCodes } from "../request-code/route";
+
+function hashCode(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,74 +17,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Username and code are required" }, { status: 400 });
     }
 
-    // Look up code
-    const stored = loginCodes.get(username);
+    // Look up code from DB (not expired)
+    const loginCode = await prisma.loginCode.findFirst({
+      where: {
+        username,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (!stored) {
+    if (!loginCode) {
       return NextResponse.json({ error: "No code found. Please request a new one." }, { status: 400 });
     }
 
-    if (Date.now() > stored.expiresAt) {
-      loginCodes.delete(username);
-      return NextResponse.json({ error: "Code expired. Please request a new one." }, { status: 400 });
+    // Brute force protection: check attempts
+    if (loginCode.attempts >= loginCode.maxAttempts) {
+      await prisma.loginCode.delete({ where: { id: loginCode.id } });
+      return NextResponse.json({ error: "Too many attempts, request a new code." }, { status: 429 });
     }
 
-    if (stored.code !== code) {
-      return NextResponse.json({ error: "Invalid code. Please try again." }, { status: 401 });
-    }
+    // Timing-safe comparison: hash submitted code, compare with stored hash
+    const submittedHash = hashCode(code);
+    const storedHashBuf = Buffer.from(loginCode.codeHash, "hex");
+    const submittedHashBuf = Buffer.from(submittedHash, "hex");
 
-    // Code is valid — delete it
-    loginCodes.delete(username);
+    const isValid =
+      storedHashBuf.length === submittedHashBuf.length &&
+      timingSafeEqual(storedHashBuf, submittedHashBuf);
 
-    // Get Telegram user info from bot API
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    let telegramId: bigint | null = null;
-    let firstName = username;
-    let lastName: string | null = null;
-    let photoUrl: string | null = null;
+    if (!isValid) {
+      // Increment attempts
+      await prisma.loginCode.update({
+        where: { id: loginCode.id },
+        data: { attempts: { increment: 1 } },
+      });
 
-    if (botToken && stored.telegramChatId) {
-      // We have the chat_id from when we sent the code
-      telegramId = BigInt(stored.telegramChatId);
-
-      // Try to get user info from recent updates
-      try {
-        const updatesRes = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?limit=100`);
-        const updatesData = await updatesRes.json();
-
-        if (updatesData.ok) {
-          for (const update of updatesData.result) {
-            const msg = update.message;
-            if (msg?.from?.username?.toLowerCase() === username) {
-              firstName = msg.from.first_name || username;
-              lastName = msg.from.last_name || null;
-              telegramId = BigInt(msg.from.id);
-              break;
-            }
-          }
-        }
-
-        // Try to get profile photo
-        const photosRes = await fetch(`https://api.telegram.org/bot${botToken}/getUserProfilePhotos?user_id=${stored.telegramChatId}&limit=1`);
-        const photosData = await photosRes.json();
-        if (photosData.ok && photosData.result.total_count > 0) {
-          const fileId = photosData.result.photos[0][0].file_id;
-          const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
-          const fileData = await fileRes.json();
-          if (fileData.ok) {
-            photoUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
-          }
-        }
-      } catch {
-        // Non-critical — proceed without extra info
+      const remaining = loginCode.maxAttempts - loginCode.attempts - 1;
+      if (remaining <= 0) {
+        await prisma.loginCode.delete({ where: { id: loginCode.id } });
+        return NextResponse.json({ error: "Too many attempts, request a new code." }, { status: 429 });
       }
+
+      return NextResponse.json(
+        { error: `Invalid code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.` },
+        { status: 401 }
+      );
     }
 
-    if (!telegramId) {
-      return NextResponse.json({ error: "Could not verify Telegram identity" }, { status: 500 });
-    }
+    // Code is valid — delete it so it can't be reused
+    await prisma.loginCode.delete({ where: { id: loginCode.id } });
 
-    // Look up or create user (same logic as the widget auth)
+    // Use chatId from LoginCode as telegramId (chatId === telegramId for private chats)
+    const telegramId = loginCode.chatId;
+
+    // Look up or create user
     let user = await prisma.user.findUnique({
       where: { telegramId },
     });
@@ -90,10 +80,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Account is disabled. Contact an administrator." }, { status: 403 });
       }
 
-      // Update user info
+      // Update username (don't update photoUrl from bot API — it leaks the token)
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { firstName, lastName, username, photoUrl },
+        data: { username },
       });
     } else {
       // New user — check bootstrap or invitation
@@ -102,7 +92,7 @@ export async function POST(req: NextRequest) {
       if (userCount === 0) {
         // First user = Super Admin
         user = await prisma.user.create({
-          data: { telegramId, firstName, lastName, username, photoUrl, status: "ACTIVE" },
+          data: { telegramId, firstName: username, username, status: "ACTIVE" },
         });
 
         const superAdminRole = await prisma.role.findUnique({ where: { name: "Super Admin" } });
@@ -127,7 +117,7 @@ export async function POST(req: NextRequest) {
         }
 
         user = await prisma.user.create({
-          data: { telegramId, firstName, lastName, username, photoUrl, status: "ACTIVE" },
+          data: { telegramId, firstName: username, username, status: "ACTIVE" },
         });
 
         await prisma.userProjectRole.create({

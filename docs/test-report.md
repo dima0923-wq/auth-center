@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-20
 **Tester**: QA Integration Agent (tg-qa-e2e)
-**Project**: Auth Center with Telegram Login Widget auth
+**Project**: Auth Center with Telegram bot code-based auth
 
 ---
 
@@ -55,10 +55,10 @@
 
 ## Summary of What Was Built
 
-Auth Center is a centralized authentication and authorization service for the media buying platform. The Telegram auth refactor replaced Google OAuth with Telegram Login Widget authentication:
+Auth Center is a centralized authentication and authorization service for the media buying platform. The Telegram auth refactor replaced Google OAuth with Telegram bot code-based authentication:
 
 ### Core Features
-1. **Telegram Login Widget auth** — Users authenticate via Telegram, with HMAC-SHA256 hash verification
+1. **Telegram bot code auth** — Users authenticate via a 6-digit code sent by the Telegram bot
 2. **JWT token service** — Issues signed JWTs with Telegram user data, refresh token support
 3. **RBAC permission engine** — Global roles, project-scoped permissions, permission matrix
 4. **User management API** — CRUD for users with Telegram identity fields
@@ -67,7 +67,8 @@ Auth Center is a centralized authentication and authorization service for the me
 7. **Middleware** — Express and Next.js middleware for protecting routes
 
 ### API Routes (all functional)
-- `/api/auth/telegram` — Telegram login (POST)
+- `/api/auth/request-code` — Request login code via bot (POST)
+- `/api/auth/verify-code` — Verify login code (POST)
 - `/api/auth/me` — Current user info (GET)
 - `/api/auth/logout` — Clear session (POST)
 - `/api/auth/verify` — Verify JWT token (POST)
@@ -81,7 +82,7 @@ Auth Center is a centralized authentication and authorization service for the me
 - Next.js 16 + Tailwind CSS + shadcn/ui
 - Prisma 7 + SQLite
 - jose (JWT signing/verification)
-- Telegram Login Widget (frontend)
+- Telegram Bot API (code-based login)
 
 ---
 

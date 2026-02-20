@@ -6,9 +6,9 @@ import { jwtVerify } from "jose";
 
 export const SESSION_COOKIE_NAME = "auth-session";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production"
-);
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret && process.env.NODE_ENV === "production") throw new Error("JWT_SECRET must be set in production");
+const JWT_SECRET = new TextEncoder().encode(jwtSecret || "dev-jwt-secret-change-in-production");
 const ISSUER = "auth-center";
 
 /**

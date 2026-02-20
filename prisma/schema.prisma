@@ -21,6 +21,8 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  telegramChatId BigInt?
+
   accounts     Account[]
   sessions     Session[]
   projectRoles UserProjectRole[]
@@ -135,4 +137,18 @@ model Invitation {
   @@index([telegramUsername])
   @@index([token])
   @@index([status])
+}
+
+model LoginCode {
+  id          String   @id @default(cuid())
+  username    String
+  codeHash    String   // SHA256 hash of the 6-digit code
+  chatId      BigInt   // Telegram chat ID
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([username])
+  @@index([expiresAt])
 }

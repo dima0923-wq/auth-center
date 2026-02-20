@@ -4,7 +4,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
+import { TelegramCodeLogin } from "@/components/auth/telegram-login-button";
 import { LoginError } from "./login-error";
 import { Shield } from "lucide-react";
 
@@ -38,7 +38,7 @@ export default async function LoginPage({
         <Card className="shadow-lg">
           <CardContent className="flex flex-col gap-4 pt-6">
             {error && <LoginError error={error} />}
-            <TelegramLoginButton />
+            <TelegramCodeLogin />
           </CardContent>
         </Card>
       </div>
