@@ -1,4 +1,5 @@
-# Auth Center — Complete Database Architecture
+# Database Architecture — Auth Center
+> Snapshot: 2026-02-21
 
 ## Overview
 
